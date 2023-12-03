@@ -7,3 +7,5 @@ require (
 	golang.org/x/net v0.9.0
 	google.golang.org/protobuf v1.30.0
 )
+
+require github.com/google/uuid v1.4.0 // indirect

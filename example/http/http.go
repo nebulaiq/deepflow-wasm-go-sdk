@@ -19,14 +19,11 @@ package main
 import (
 	"bufio"
 	"bytes"
-	"io"
-	"net/http"
-	"strconv"
-	"strings"
-	"time"
-
 	"github.com/deepflowio/deepflow-wasm-go-sdk/sdk"
-	"github.com/valyala/fastjson"
+	"github.com/google/uuid"
+	"log"
+	"net/http"
+	"strings"
 )
 
 type httpHook struct {
@@ -47,9 +44,9 @@ assume the http request as follow:
 */
 func (p httpHook) OnHttpReq(ctx *sdk.HttpReqCtx) sdk.Action {
 	baseCtx := &ctx.BaseCtx
-	if baseCtx.DstPort != 8080 || !strings.HasPrefix(ctx.Path, "/user_info?") {
+	/*if baseCtx.DstPort != 8080 || !strings.HasPrefix(ctx.Path, "/user_info?") {
 		return sdk.ActionNext()
-	}
+	}*/
 
 	payload, err := baseCtx.GetPayload()
 	if err != nil {
@@ -61,9 +58,9 @@ func (p httpHook) OnHttpReq(ctx *sdk.HttpReqCtx) sdk.Action {
 		return sdk.ActionAbortWithErr(err)
 	}
 
-	query := req.URL.Query()
+	//	query := req.URL.Query()
 
-	attr := []sdk.KeyVal{
+	/*	attr := []sdk.KeyVal{
 		{
 			Key: "username",
 			Val: query.Get("username"),
@@ -73,36 +70,46 @@ func (p httpHook) OnHttpReq(ctx *sdk.HttpReqCtx) sdk.Action {
 			Key: "type",
 			Val: query.Get("type"),
 		},
-	}
+	}*/
+
+	attr := []sdk.KeyVal{}
 
 	var (
-		traceID string
-		spanID  string
-		trace   *sdk.Trace
+		traceID      string
+		spanID       string
+		parentSpanID string
+		trace        *sdk.Trace
 	)
 
 	traceInfo, ok := req.Header["Custom-Trace-Info"]
 	if ok && len(traceInfo) != 0 {
-		s := strings.Split(traceInfo[0], ",")
-		if len(s) == 2 {
-			t := strings.Split(s[0], ":")
-			if len(t) == 2 {
-				traceID = strings.TrimSpace(t[1])
-			}
+		s := strings.Split(traceInfo[0], ":")
+		if len(s) == 3 {
+			traceID = strings.TrimSpace(s[0])
+			spanID = strings.TrimSpace(s[1])
+			parentSpanID = strings.TrimSpace(s[2])
 
-			sp := strings.Split(s[1], ":")
-			if len(sp) == 2 {
-				spanID = strings.TrimSpace(sp[1])
-			}
 		}
 
 	}
 
 	if traceID != "" && spanID != "" {
 		trace = &sdk.Trace{
-			TraceID: traceID,
-			SpanID:  spanID,
+			TraceID:      traceID,
+			SpanID:       spanID,
+			ParentSpanID: parentSpanID,
 		}
+	} else {
+		traceId, err := uuid.NewUUID()
+		if err != nil {
+			log.Fatalf("failed to generate UUID: %v", err)
+		}
+		s := traceId.String()
+		trace = &sdk.Trace{
+			TraceID: s,
+			SpanID:  s,
+		}
+
 	}
 
 	return sdk.HttpReqActionAbortWithResult(nil, trace, attr)
@@ -115,7 +122,13 @@ assume resp as follow:
 
 	{"code": 0, "data": {"user_id": 12345, "register_time": 1682050409}}
 */
+
 func (p httpHook) OnHttpResp(ctx *sdk.HttpRespCtx) sdk.Action {
+	return sdk.ActionNext()
+
+}
+
+/*func (p httpHook) OnHttpResp(ctx *sdk.HttpRespCtx) sdk.Action {
 	baseCtx := &ctx.BaseCtx
 	if baseCtx.SrcPort != 8080 {
 		return sdk.ActionNext()
@@ -155,7 +168,7 @@ func (p httpHook) OnHttpResp(ctx *sdk.HttpRespCtx) sdk.Action {
 	}
 	return sdk.ActionAbort()
 
-}
+}*/
 
 func (p httpHook) OnCheckPayload(baseCtx *sdk.ParseCtx) (uint8, string) {
 	return 0, ""
